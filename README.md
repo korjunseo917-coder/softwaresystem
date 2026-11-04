@@ -18,11 +18,7 @@ macOS/Linux에서는 `sh run.sh`로 실행할 수 있다. 데이터는 사용자
 java -jar dist/ssd_ip_cp4_2026f_224110_app.jar --data ./practice.dat
 ```
 
-이전 버전의 저장 형식을 유지했다. 다만 반복 간격 0으로 저장한 자료는 0을 지원하는 이번 버전에서 사용해야 한다.
 
-## 소스 수정 후 빌드
-
-JDK 17 이상이 필요하다. Windows는 `build.bat`, macOS/Linux는 `sh build.sh`를 실행한다. 실행 JAR와 Javadoc이 함께 갱신된다.
 
 ## 파일 구성
 
@@ -36,6 +32,4 @@ JDK 17 이상이 필요하다. Windows는 `build.bat`, macOS/Linux는 `sh build.
 | `docs/beta-calendar.png` | 테스트 자료를 넣어 실행한 달력 화면 |
 | `test/irrigation/` | 검증용 코드. 실행 JAR에는 포함되지 않음 |
 
-먼저 `docs/code-guide.md`를 읽고 `IrrigationService.registerZone()`부터 따라가면 된다. 전체 화면 배치 코드를 한 번에 이해할 필요는 없다.
 
-이 ZIP은 개발용 프로젝트 묶음이다. 최종 제출 때는 보고서 PDF와 GitHub URL을 준비하고, 교수님이 지정한 소스 ZIP·JAR·API ZIP 구성으로 다시 묶어야 한다.
