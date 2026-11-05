@@ -12,6 +12,9 @@ public class Schedule {
     private final boolean completed;
     private final LocalDateTime completedAt;
     private final String completedZoneName;
+    private final String completedZoneDescription;
+    private final int completedIntervalDays;
+    private final String completionNotes;
 
     /**
      * 일정 또는 완료 기록을 만든다.
@@ -25,6 +28,27 @@ public class Schedule {
      */
     public Schedule(String id, String zoneId, LocalDate scheduledDate, double amountLiters,
                     boolean completed, LocalDateTime completedAt, String completedZoneName) {
+        this(id, zoneId, scheduledDate, amountLiters, completed, completedAt,
+                completedZoneName, "", -1, "");
+    }
+
+    /**
+     * 완료 당시 구역 정보와 작업 특이사항을 함께 보관한다.
+     * @param id 일정 ID
+     * @param zoneId 구역 ID
+     * @param scheduledDate 예정일
+     * @param amountLiters 일정에 입력한 관수량(L)
+     * @param completed 완료 여부
+     * @param completedAt 완료 일시, 미완료는 null
+     * @param completedZoneName 완료 당시 구역명
+     * @param completedZoneDescription 완료 당시 구역 설명
+     * @param completedIntervalDays 완료 당시 반복 간격, 미완료 또는 이전 기록은 -1
+     * @param completionNotes 완료 작업의 특이사항
+     */
+    public Schedule(String id, String zoneId, LocalDate scheduledDate, double amountLiters,
+                    boolean completed, LocalDateTime completedAt, String completedZoneName,
+                    String completedZoneDescription, int completedIntervalDays,
+                    String completionNotes) {
         this.id = id;
         this.zoneId = zoneId;
         this.scheduledDate = scheduledDate;
@@ -32,6 +56,9 @@ public class Schedule {
         this.completed = completed;
         this.completedAt = completedAt;
         this.completedZoneName = completedZoneName;
+        this.completedZoneDescription = completedZoneDescription;
+        this.completedIntervalDays = completedIntervalDays;
+        this.completionNotes = completionNotes;
     }
     /**
      * @return 일정 ID */
@@ -67,6 +94,21 @@ public class Schedule {
      * @return 완료 당시 구역명 */
     public String getCompletedZoneName() {
         return completedZoneName;
+    }
+
+    /** @return 완료 당시 구역 설명 */
+    public String getCompletedZoneDescription() {
+        return completedZoneDescription;
+    }
+
+    /** @return 완료 당시 반복 간격. 0은 반복 없음, -1은 정보 없음 */
+    public int getCompletedIntervalDays() {
+        return completedIntervalDays;
+    }
+
+    /** @return 완료 작업의 특이사항 */
+    public String getCompletionNotes() {
+        return completionNotes;
     }
     /**
      * 날짜 상태는 파일에 저장하지 않고 조회할 때 계산한다.

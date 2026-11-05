@@ -60,8 +60,10 @@ public class MainFrame extends JFrame {
     private JButton selectedCalendarButton;
 
     // 완료 기록 화면
-    private final JTable history = createTable("예정일", "완료 당시 구역명", "관수량(L)", "완료 일시", "구역 상태");
+    private final JTable history = createTable("예정일", "완료 당시 구역명", "관수 주기",
+            "관수량(L)", "완료 일시", "특이사항", "구역 상태");
     private final JLabel historyCount = new JLabel();
+    private final JButton historyDetails = new JButton("선택 기록 상세·특이사항");
     private final JButton undo = new JButton("선택한 작업 완료 취소");
     private List<Schedule> historyRows = new ArrayList<>();
 
@@ -247,11 +249,14 @@ public class MainFrame extends JFrame {
         panel.add(top, BorderLayout.NORTH);
         panel.add(new JScrollPane(history), BorderLayout.CENTER);
         JPanel bottom = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        bottom.add(historyDetails);
         bottom.add(undo);
         bottom.add(historyCount);
         panel.add(bottom, BorderLayout.SOUTH);
 
         undo.setEnabled(false);
+        historyDetails.setEnabled(false);
+        historyDetails.addActionListener(event -> editCompletionNotes());
         undo.addActionListener(event -> undo());
         historyFilter.addActionListener(event -> {
             if (!refreshing) {
@@ -263,9 +268,11 @@ public class MainFrame extends JFrame {
                 return;
             }
             undo.setEnabled(false);
+            historyDetails.setEnabled(false);
             int row = history.getSelectedRow();
             if (row >= 0 && row < historyRows.size()) {
                 Schedule schedule = historyRows.get(row);
+                historyDetails.setEnabled(true);
                 if (service.findZone(schedule.getZoneId()) != null) {
                     undo.setEnabled(true);
                 }
@@ -446,12 +453,90 @@ public class MainFrame extends JFrame {
             return;
         }
         try {
-            service.undoCompletion(historyRows.get(row).getId());
+            Schedule schedule = historyRows.get(row);
+            if (!schedule.getCompletionNotes().isEmpty()
+                    && !confirm("완료를 취소하면 이 작업의 특이사항도 지워집니다.\n계속할까요?")) {
+                return;
+            }
+            service.undoCompletion(schedule.getId());
             refreshAll();
             notice.setText("완료를 취소하고 미완료 일정으로 되돌렸습니다.");
         } catch (DateTimeParseException | IllegalArgumentException | IOException e) {
             showError(e);
         }
+    }
+
+    // F-04·05 / UC-04·05: 완료 당시 정보를 읽고 특이사항만 바꾼다.
+    private void editCompletionNotes() {
+        int row = history.getSelectedRow();
+        if (row < 0) {
+            return;
+        }
+        Schedule schedule = historyRows.get(row);
+        boolean deletedZone = service.findZone(schedule.getZoneId()) == null;
+        String savedDescription = schedule.getCompletedZoneDescription();
+        if (schedule.getCompletedIntervalDays() < 0) {
+            savedDescription = "이전 기록에는 구역 설명과 관수 주기가 저장되어 있지 않습니다.";
+        } else if (savedDescription.isEmpty()) {
+            savedDescription = "설명 없음";
+        }
+
+        JTextArea details = new JTextArea(9, 50);
+        details.setEditable(false);
+        details.setLineWrap(true);
+        details.setWrapStyleWord(true);
+        details.setText("구역명: " + schedule.getCompletedZoneName()
+                + "\n예정일: " + schedule.getScheduledDate()
+                + "\n관수 주기: " + intervalText(schedule.getCompletedIntervalDays())
+                + "\n일정에 입력한 관수량: " + schedule.getAmountLiters() + " L"
+                + "\n완료 일시: " + schedule.getCompletedAt().withNano(0).toString().replace('T', ' ')
+                + "\n구역 상태: " + (deletedZone ? "삭제됨" : "관리 중")
+                + "\n\n구역 설명: " + savedDescription);
+        details.setCaretPosition(0);
+        JScrollPane detailsScroll = new JScrollPane(details);
+        detailsScroll.setBorder(BorderFactory.createTitledBorder("완료 당시 기록"));
+
+        JTextArea notes = new JTextArea(schedule.getCompletionNotes(), 6, 50);
+        notes.setLineWrap(true);
+        notes.setWrapStyleWord(true);
+        notes.setEditable(!deletedZone);
+        JScrollPane notesScroll = new JScrollPane(notes);
+        notesScroll.setBorder(BorderFactory.createTitledBorder("특이사항 (선택)"));
+        JPanel panel = new JPanel(new BorderLayout(8, 8));
+        panel.add(detailsScroll, BorderLayout.NORTH);
+        panel.add(notesScroll, BorderLayout.CENTER);
+        panel.add(new JLabel(deletedZone ? "삭제된 구역은 기록 조회만 가능합니다."
+                : "실제 물 사용량, 강우 여부, 식물 상태 등을 자유롭게 적어 주세요."), BorderLayout.SOUTH);
+
+        if (deletedZone) {
+            JOptionPane.showMessageDialog(this, panel, "완료 기록 상세", JOptionPane.PLAIN_MESSAGE);
+            return;
+        }
+        // 저장에 실패하면 입력한 메모를 남겨 두고 다시 선택하도록 한다.
+        while (true) {
+            int choice = JOptionPane.showOptionDialog(this, panel, "완료 기록 상세·특이사항",
+                    JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE, null,
+                    new String[]{"저장", "취소"}, "저장");
+            if (choice != JOptionPane.OK_OPTION) {
+                return;
+            }
+            try {
+                service.updateCompletionNotes(schedule.getId(), notes.getText());
+                refreshHistory();
+                history.setRowSelectionInterval(row, row);
+                notice.setText("완료 기록의 특이사항을 저장했습니다.");
+                return;
+            } catch (IllegalArgumentException | IOException e) {
+                showError(e);
+            }
+        }
+    }
+
+    private String intervalText(int days) {
+        if (days < 0) {
+            return "기록 없음";
+        }
+        return days == 0 ? "반복 없음" : days + "일";
     }
 
     // 3. REQ-04 / UC-04: 조회 결과를 화면에 표시하기
@@ -648,6 +733,7 @@ public class MainFrame extends JFrame {
     private void refreshHistory() {
         history.clearSelection();
         undo.setEnabled(false);
+        historyDetails.setEnabled(false);
         historyRows = service.getSchedules(chosen(historyFilter, historyIds), true);
         DefaultTableModel model = (DefaultTableModel) history.getModel();
         model.setRowCount(0);
@@ -658,7 +744,8 @@ public class MainFrame extends JFrame {
             }
             String completedAt = schedule.getCompletedAt().withNano(0).toString().replace('T', ' ');
             model.addRow(new Object[]{schedule.getScheduledDate(), schedule.getCompletedZoneName(),
-                    schedule.getAmountLiters(), completedAt, zoneState});
+                    intervalText(schedule.getCompletedIntervalDays()), schedule.getAmountLiters(),
+                    completedAt, schedule.getCompletionNotes().isEmpty() ? "없음" : "있음", zoneState});
         }
         if (historyRows.isEmpty()) {
             historyCount.setText("선택한 구역의 완료 기록이 없습니다.");

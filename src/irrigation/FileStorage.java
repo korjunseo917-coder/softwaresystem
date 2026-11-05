@@ -17,9 +17,11 @@ import java.util.List;
 
 /** REQ-06: 구역과 일정을 하나의 로컬 파일에 저장하고 불러온다. */
 public class FileStorage {
-    private static final String HEADER = "GARDEN_IRRIGATION_1";
+    private static final String OLD_HEADER = "GARDEN_IRRIGATION_1";
+    private static final String HEADER = "GARDEN_IRRIGATION_2";
     private static final int MAX_RECORDS = 100000;
     private final Path file;
+    private boolean loadedOldFormat;
 
     /** @param file 저장 파일 경로 */
     public FileStorage(Path file) {
@@ -70,12 +72,23 @@ public class FileStorage {
                     }
                     output.writeUTF(completedAt);
                     output.writeUTF(schedule.getCompletedZoneName());
+                    output.writeUTF(schedule.getCompletedZoneDescription());
+                    output.writeInt(schedule.getCompletedIntervalDays());
+                    output.writeUTF(schedule.getCompletionNotes());
                 }
                 output.flush();
                 fileOutput.getFD().sync();
             }
+            // 이전 파일을 새 형식으로 처음 저장할 때 원본을 한 번 남긴다.
+            if (loadedOldFormat) {
+                Path backup = file.resolveSibling(file.getFileName() + ".v1.bak");
+                if (!Files.exists(backup)) {
+                    Files.copy(file, backup);
+                }
+            }
             Files.move(temporaryFile, file, StandardCopyOption.REPLACE_EXISTING,
                        StandardCopyOption.ATOMIC_MOVE);
+            loadedOldFormat = false;
         } finally {
             Files.deleteIfExists(temporaryFile);
         }
@@ -95,7 +108,9 @@ public class FileStorage {
         List<Schedule> loadedSchedules = new ArrayList<>();
         try (DataInputStream input = new DataInputStream(
                 new BufferedInputStream(Files.newInputStream(file)))) {
-            if (!HEADER.equals(input.readUTF())) {
+            String header = input.readUTF();
+            boolean oldFormat = OLD_HEADER.equals(header);
+            if (!oldFormat && !HEADER.equals(header)) {
                 throw new IOException("지원하지 않는 저장 파일입니다.");
             }
             int zoneCount = readCount(input);
@@ -119,16 +134,26 @@ public class FileStorage {
                 boolean completed = input.readBoolean();
                 String savedCompletedAt = input.readUTF();
                 String completedZoneName = input.readUTF();
+                String completedZoneDescription = "";
+                int completedIntervalDays = -1;
+                String completionNotes = "";
+                if (!oldFormat) {
+                    completedZoneDescription = input.readUTF();
+                    completedIntervalDays = input.readInt();
+                    completionNotes = input.readUTF();
+                }
                 LocalDateTime completedAt = null;
                 if (!savedCompletedAt.isEmpty()) {
                     completedAt = LocalDateTime.parse(savedCompletedAt);
                 }
                 loadedSchedules.add(new Schedule(id, zoneId, scheduledDate, amountLiters,
-                                                 completed, completedAt, completedZoneName));
+                        completed, completedAt, completedZoneName, completedZoneDescription,
+                        completedIntervalDays, completionNotes));
             }
             if (input.read() != -1) {
                 throw new IOException("저장 파일 뒤에 알 수 없는 데이터가 있습니다.");
             }
+            loadedOldFormat = oldFormat;
         } catch (NoSuchFileException e) {
             return;
         } catch (RuntimeException e) {

@@ -289,7 +289,7 @@ public class IrrigationService {
 
     // F-05 / REQ-05 / UC-05
     /**
-     * 미완료 일정에 완료 일시와 당시 구역명을 기록한다.
+     * 완료 일시와 당시 구역 이름·설명·반복 간격을 기록한다.
      * @param scheduleId 완료할 일정 ID
      * @throws IOException 저장 실패
      */
@@ -298,13 +298,38 @@ public class IrrigationService {
         Zone zone = requireZone(oldSchedule.getZoneId());
         Schedule completedSchedule = new Schedule(scheduleId, zone.getId(),
                 oldSchedule.getScheduledDate(), oldSchedule.getAmountLiters(),
-                true, LocalDateTime.now(clock), zone.getName());
+                true, LocalDateTime.now(clock), zone.getName(), zone.getDescription(),
+                zone.getIntervalDays(), "");
         replaceSchedule(completedSchedule);
+    }
+
+    // F-05 / REQ-05 / UC-05 대안 경로
+    /**
+     * 완료 기록의 특이사항만 수정한다. 완료 당시 정보와 관수량은 그대로 둔다.
+     * @param scheduleId 완료한 일정 ID
+     * @param notes 실제 물 사용량, 강우 여부, 식물 상태 등을 적은 선택 메모
+     * @throws IOException 저장 실패
+     * @throws IllegalArgumentException 미완료 일정 또는 삭제된 구역의 기록
+     */
+    public void updateCompletionNotes(String scheduleId, String notes) throws IOException {
+        Schedule oldSchedule = findSchedule(scheduleId);
+        if (!oldSchedule.isCompleted()) {
+            throw new IllegalArgumentException("완료 기록을 선택해 주세요.");
+        }
+        if (findZone(oldSchedule.getZoneId()) == null) {
+            throw new IllegalArgumentException("삭제된 구역의 완료 기록은 조회만 가능합니다.");
+        }
+        Schedule updatedSchedule = new Schedule(scheduleId, oldSchedule.getZoneId(),
+                oldSchedule.getScheduledDate(), oldSchedule.getAmountLiters(),
+                true, oldSchedule.getCompletedAt(), oldSchedule.getCompletedZoneName(),
+                oldSchedule.getCompletedZoneDescription(), oldSchedule.getCompletedIntervalDays(),
+                cleanDescription(notes));
+        replaceSchedule(updatedSchedule);
     }
 
     // F-05 / REQ-05 / UC-06
     /**
-     * 완료 정보를 비우고 미완료로 되돌린다. 예정일과 관수량은 유지한다.
+     * 완료 정보와 특이사항을 비우고 미완료로 되돌린다. 예정일과 관수량은 유지한다.
      * @param scheduleId 완료 취소할 일정 ID
      * @throws IOException 저장 실패
      */
@@ -521,9 +546,15 @@ public class IrrigationService {
                 if (schedule.getCompletedAt() == null || schedule.getCompletedZoneName().isBlank()) {
                     throw new IllegalArgumentException("완료 기록에 일시 또는 구역명이 없습니다.");
                 }
+                if (schedule.getCompletedIntervalDays() < -1) {
+                    throw new IllegalArgumentException("완료 기록의 반복 간격이 잘못되었습니다.");
+                }
             } else {
                 if (!zoneIds.contains(schedule.getZoneId()) || schedule.getCompletedAt() != null
-                        || !schedule.getCompletedZoneName().isEmpty()) {
+                        || !schedule.getCompletedZoneName().isEmpty()
+                        || !schedule.getCompletedZoneDescription().isEmpty()
+                        || schedule.getCompletedIntervalDays() != -1
+                        || !schedule.getCompletionNotes().isEmpty()) {
                     throw new IllegalArgumentException("미완료 일정의 구역 또는 완료 정보가 잘못되었습니다.");
                 }
             }
