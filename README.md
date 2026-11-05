@@ -33,8 +33,6 @@ java -jar dist/ssd_ip_cp4_2026f_224110_app.jar --data ./practice.dat
 | 경로 | 내용 |
 | --- | --- |
 | `src/irrigation/` | 프로그램 클래스 5개 |
-| `dist/ssd_ip_cp4_2026f_224110_app.jar` | 실행 프로그램 |
-| `docs/api/index.html` | 브라우저로 여는 Javadoc API 문서 |
 | `test/irrigation/` | 검증용 코드. 실행 JAR에는 포함되지 않음 |
 
 
